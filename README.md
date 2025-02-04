@@ -27,8 +27,8 @@ Then run the Flask application:
 python lyrics_generator.py
 ```
 
-**3. Run the React Frontend**
-Open a new terminal window. Navigate to the root directory of the project:
+**3. Run the React Frontend**<br>
+Open a new terminal window and navigate to the root directory of the project:
 ```bash
 cd my-music-generator
 ```
