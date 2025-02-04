@@ -2,7 +2,7 @@
 Raymond's FYP
 
 **1. Install Required Packages**<br>
-Run the following commands to install the necessary packages for both the Flask API and React frontend:
+Run the following commands to install the necessary packages for both the Flask API and React frontend:<br>
 For React Frontend：
 ```bash
 npm install @radix-ui/react-select
