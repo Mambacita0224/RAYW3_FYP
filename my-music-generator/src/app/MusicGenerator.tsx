@@ -24,8 +24,33 @@ const MusicGenerator: React.FC = () => {
     { value: 'cantonese', label: 'Cantonese' }
   ];
 
+  // const handleGenerateLyrics = async () => {
+  //   console.log('Generating lyrics...');
+  // };
   const handleGenerateLyrics = async () => {
-    console.log('Generating lyrics...');
+      try {
+          const response = await fetch('http://127.0.0.1:5000/generate-lyrics', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  description,
+                  language: selectedLanguage,
+                  style: selectedStyle,
+              }),
+          });
+
+          if (!response.ok) {
+              throw new Error('Network response was not ok');
+          }
+
+          const data = await response.json();
+          setGeneratedLyrics(data.lyrics);
+          console.log('Generated lyrics:', data.lyrics);
+      } catch (error) {
+          console.error('Error generating lyrics:', error);
+      }
   };
 
   const handleCreateMusic = async () => {
