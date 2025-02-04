@@ -17,23 +17,22 @@ pip install Flask flask-cors openai
 ```
 
 
-**2. Run the Flask API**
-    1. In your terminal, navigate to the API directory:
+**2. Run the Flask API**<br>
+In your terminal, navigate to the API directory:
 ```bash
-    cd my-music-generator/api
+cd my-music-generator/api
 ```
-    2. Then run the Flask application:
+Then run the Flask application:
 ```bash
-    python lyrics_generator.py
+python lyrics_generator.py
 ```
 
 **3. Run the React Frontend**
-    1. Open a new terminal window.
-    2. Navigate to the root directory of the project:
+Open a new terminal window. Navigate to the root directory of the project:
 ```bash
-    cd my-music-generator
+cd my-music-generator
 ```
-    3. Start the React application:
+Start the React application:
 ```bash
-    npm run dev
+npm run dev
 ```
