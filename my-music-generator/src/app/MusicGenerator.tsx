@@ -9,6 +9,8 @@ const MusicGenerator: React.FC = () => {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [generatedLyrics, setGeneratedLyrics] = useState('');
   const [midiData, setMidiData] = useState<any>(null); // 用 any 或者更具体的类型替代
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const musicStyles = [
     { value: 'medieval-rock', label: 'Medieval rock' },
@@ -24,10 +26,8 @@ const MusicGenerator: React.FC = () => {
     { value: 'cantonese', label: 'Cantonese' }
   ];
 
-  // const handleGenerateLyrics = async () => {
-  //   console.log('Generating lyrics...');
-  // };
   const handleGenerateLyrics = async () => {
+      setIsLoading(true);
       try {
           const response = await fetch('http://127.0.0.1:5000/generate-lyrics', {
               method: 'POST',
@@ -50,7 +50,13 @@ const MusicGenerator: React.FC = () => {
           console.log('Generated lyrics:', data.lyrics);
       } catch (error) {
           console.error('Error generating lyrics:', error);
+      } finally {
+        setIsLoading(false);
       }
+  };
+
+  const handleEditLyrics = () => {
+    setIsEditing(!isEditing);
   };
 
   const handleCreateMusic = async () => {
@@ -108,9 +114,10 @@ const MusicGenerator: React.FC = () => {
               <div className="mt-4 flex justify-between items-center">
                 <button
                   onClick={handleGenerateLyrics}
-                  className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded"
+                  className={`bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isLoading} // 按钮禁用
                 >
-                  GENERATE THE LYRICS
+                  {isLoading ? 'Loading...' : 'GENERATE THE LYRICS'}
                 </button>
                 <span className="text-gray-400">
                   {description.length}/300
@@ -123,15 +130,17 @@ const MusicGenerator: React.FC = () => {
               <h2 className="text-xl font-bold mb-4">Lyrics</h2>
               <textarea
                 value={generatedLyrics}
-                readOnly
+                onChange={(e) => setGeneratedLyrics(e.target.value)} // 允许编辑
+                readOnly={!isEditing}
                 className="w-full h-48 p-2 bg-gray-700 rounded text-white"
                 placeholder="Click GENERATE LYRICS to see the lyrics..."
               />
               <div className="mt-4 flex justify-between items-center">
                 <button
+                  onClick={handleEditLyrics}
                   className="border border-white px-4 py-2 rounded"
                 >
-                  EDIT
+                  {isEditing ? 'SAVE' : 'EDIT'} {/* 根据状态切换按钮文本 */}
                 </button>
                 <span className="text-gray-400">
                   {generatedLyrics.length}/1000
