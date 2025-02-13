@@ -1,16 +1,24 @@
 // src/app/MusicGenerator.tsx
 "use client";  // 标记为客户端组件
-import React, { useState } from 'react';
-import { Music, Settings, Volume2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Play, Pause, Volume2, RotateCcw, FastForward } from 'lucide-react';
 
 const MusicGenerator: React.FC = () => {
   const [description, setDescription] = useState('');
   const [selectedStyle, setSelectedStyle] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [generatedLyrics, setGeneratedLyrics] = useState('');
-  const [midiData, setMidiData] = useState<any>(null); // 用 any 或者更具体的类型替代
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioUrl, setAudioUrl] = useState('');
+  const [songInfo, setSongInfo] = useState({
+    title: '',
+    duration: '0:00',
+    currentTime: '0:00'
+  });
+  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const musicStyles = [
     { value: 'medieval-rock', label: 'Medieval rock' },
@@ -27,32 +35,35 @@ const MusicGenerator: React.FC = () => {
   ];
 
   const handleGenerateLyrics = async () => {
-      setIsLoading(true);
-      try {
-          const response = await fetch('http://127.0.0.1:5000/generate-lyrics', {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                  description,
-                  language: selectedLanguage,
-                  style: selectedStyle,
-              }),
-          });
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/generate-lyrics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          description,
+          language: selectedLanguage,
+          style: selectedStyle,
+        }),
+      });
 
-          if (!response.ok) {
-              throw new Error('Network response was not ok');
-          }
-
-          const data = await response.json();
-          setGeneratedLyrics(data.lyrics);
-          console.log('Generated lyrics:', data.lyrics);
-      } catch (error) {
-          console.error('Error generating lyrics:', error);
-      } finally {
-        setIsLoading(false);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
       }
+
+      const data = await response.json();
+      setGeneratedLyrics(data.lyrics);
+      setSongInfo(prev => ({
+        ...prev,
+        title: `${selectedStyle.charAt(0).toUpperCase() + selectedStyle.slice(1)} Song`
+      }));
+    } catch (error) {
+      console.error('Error generating lyrics:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEditLyrics = () => {
@@ -60,14 +71,39 @@ const MusicGenerator: React.FC = () => {
   };
 
   const handleCreateMusic = async () => {
-    console.log('Creating music...');
+    try {
+      // Placeholder for actual music generation API call
+      console.log('Creating music...');
+      // Simulate receiving an audio file URL
+      // In reality, this would come from your backend
+      setAudioUrl('/path-to-generated-audio.mp3');
+    } catch (error) {
+      console.error('Error creating music:', error);
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   return (
     <div className="p-6 bg-gray-900 min-h-screen text-white">
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Left Panel */}
+          {/* Left Panel - Keep existing code for style, language, description, and lyrics */}
           <div className="space-y-6">
             {/* Style Selection */}
             <div className="bg-gray-800 p-4 rounded-lg">
@@ -115,7 +151,7 @@ const MusicGenerator: React.FC = () => {
                 <button
                   onClick={handleGenerateLyrics}
                   className={`bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={isLoading} // 按钮禁用
+                  disabled={isLoading}
                 >
                   {isLoading ? 'Loading...' : 'GENERATE THE LYRICS'}
                 </button>
@@ -130,7 +166,7 @@ const MusicGenerator: React.FC = () => {
               <h2 className="text-xl font-bold mb-4">Lyrics</h2>
               <textarea
                 value={generatedLyrics}
-                onChange={(e) => setGeneratedLyrics(e.target.value)} // 允许编辑
+                onChange={(e) => setGeneratedLyrics(e.target.value)}
                 readOnly={!isEditing}
                 className="w-full h-48 p-2 bg-gray-700 rounded text-white"
                 placeholder="Click GENERATE LYRICS to see the lyrics..."
@@ -140,7 +176,7 @@ const MusicGenerator: React.FC = () => {
                   onClick={handleEditLyrics}
                   className="border border-white px-4 py-2 rounded"
                 >
-                  {isEditing ? 'SAVE' : 'EDIT'} {/* 根据状态切换按钮文本 */}
+                  {isEditing ? 'SAVE' : 'EDIT'}
                 </button>
                 <span className="text-gray-400">
                   {generatedLyrics.length}/1000
@@ -149,36 +185,75 @@ const MusicGenerator: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Panel - Music Editor */}
+          {/* Right Panel - New Music Player */}
           <div className="bg-gray-800 p-4 rounded-lg">
-            <h2 className="text-xl font-bold mb-4">Music Editor</h2>
-            <div className="border border-gray-700 rounded-lg p-4">
-              <div className="flex space-x-4 mb-4">
-                <button className="flex items-center px-4 py-2 text-white">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </button>
-                <button className="flex items-center px-4 py-2 text-white">
-                  <Volume2 className="w-4 h-4 mr-2" />
-                  Volume
-                </button>
-                <button className="flex items-center px-4 py-2 text-white">
-                  <Music className="w-4 h-4 mr-2" />
-                  Tracks
-                </button>
-              </div>
-              <div className="h-96 bg-gray-900 rounded-lg relative">
-                {midiData ? (
-                  <div className="p-4">
-                    <span className="text-gray-400">MIDI Editor View</span>
-                  </div>
+            <h2 className="text-xl font-bold mb-4">Music Player</h2>
+            <div className="space-y-6">
+              {/* Visualization/Album Art */}
+              <div className="aspect-square bg-gray-700 rounded-lg overflow-hidden flex items-center justify-center">
+                {selectedStyle ? (
+                  <img
+                    src={`/api/placeholder/400/400`}
+                    alt="Music Visualization"
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <span className="text-gray-400">
-                      Generate music to view MIDI editor
-                    </span>
+                  <div className="text-gray-400 text-center p-4">
+                    Select a style and generate music to see visualization
                   </div>
                 )}
+              </div>
+
+              {/* Song Info */}
+              <div className="text-center">
+                <h3 className="text-xl font-bold">{songInfo.title || "No song generated"}</h3>
+                <p className="text-gray-400">{selectedStyle || "Select a style"}</p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-purple-600 h-2 rounded-full"
+                  style={{ width: '0%' }}
+                />
+              </div>
+
+              {/* Time */}
+              <div className="flex justify-between text-sm text-gray-400">
+                <span>{songInfo.currentTime}</span>
+                <span>{songInfo.duration}</span>
+              </div>
+
+              {/* Controls */}
+              <div className="flex justify-center items-center space-x-6">
+                <button className="p-2 hover:text-purple-500">
+                  <RotateCcw className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={togglePlayPause}
+                  className="p-4 bg-purple-600 rounded-full hover:bg-purple-700"
+                >
+                  {isPlaying ? (
+                    <Pause className="w-8 h-8" />
+                  ) : (
+                    <Play className="w-8 h-8" />
+                  )}
+                </button>
+                <button className="p-2 hover:text-purple-500">
+                  <FastForward className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Volume Control */}
+              <div className="flex items-center space-x-2">
+                <Volume2 className="w-5 h-5" />
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  defaultValue="100"
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
               </div>
             </div>
           </div>
@@ -194,6 +269,21 @@ const MusicGenerator: React.FC = () => {
             🎵 CREATE THE MUSIC! 🎵
           </button>
         </div>
+
+        {/* Hidden audio element */}
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          onTimeUpdate={() => {
+            if (audioRef.current) {
+              setSongInfo(prev => ({
+                ...prev,
+                currentTime: formatTime(audioRef.current?.currentTime || 0),
+                duration: formatTime(audioRef.current?.duration || 0)
+              }));
+            }
+          }}
+        />
       </div>
     </div>
   );
