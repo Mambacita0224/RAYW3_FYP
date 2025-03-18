@@ -8,8 +8,10 @@ const MusicGenerator: React.FC = () => {
   const [selectedStyle, setSelectedStyle] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [generatedLyrics, setGeneratedLyrics] = useState('');
+  const [generatedChordProgression, setGeneratedChordProgression] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
+  const [isLoadingMelody, setIsLoadingMelody] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioUrl, setAudioUrl] = useState('');
   const [songInfo, setSongInfo] = useState({
@@ -30,40 +32,43 @@ const MusicGenerator: React.FC = () => {
 
   const languages = [
     { value: 'english', label: 'English' },
-    { value: 'mandarin', label: 'Mandarin Chinese' },
+    { value: 'mandarin', label: 'Mandarin' },
     { value: 'cantonese', label: 'Cantonese' }
   ];
 
   const handleGenerateLyrics = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/generate-lyrics', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          description,
-          language: selectedLanguage,
-          style: selectedStyle,
-        }),
-      });
+      setIsLoadingLyrics(true);
+      try {
+          const response = await fetch('http://127.0.0.1:5000/generate-lyrics', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  description,
+                  language: selectedLanguage,
+                  style: selectedStyle,
+              }),
+          });
 
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
+          if (!response.ok) {
+              throw new Error('Network response was not ok');
+          }
+
+          const data = await response.json();
+          const lyricsPart = data.lyrics;
+
+          setGeneratedLyrics(lyricsPart); // 设置歌词
+          
+          setSongInfo(prev => ({
+              ...prev,
+              title: `${selectedStyle.charAt(0).toUpperCase() + selectedStyle.slice(1)} Song`
+          }));
+      } catch (error) {
+          console.error('Error generating lyrics:', error);
+      } finally {
+          setIsLoadingLyrics(false);
       }
-
-      const data = await response.json();
-      setGeneratedLyrics(data.lyrics);
-      setSongInfo(prev => ({
-        ...prev,
-        title: `${selectedStyle.charAt(0).toUpperCase() + selectedStyle.slice(1)} Song`
-      }));
-    } catch (error) {
-      console.error('Error generating lyrics:', error);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleEditLyrics = () => {
@@ -71,16 +76,59 @@ const MusicGenerator: React.FC = () => {
   };
 
   const handleCreateMusic = async () => {
+    setIsLoadingMelody(true);
+    if (!generatedLyrics) return;
+  
     try {
-      // Placeholder for actual music generation API call
-      console.log('Creating music...');
-      // Simulate receiving an audio file URL
-      // In reality, this would come from your backend
-      setAudioUrl('/path-to-generated-audio.mp3');
+      const chord_response = await fetch('http://127.0.0.1:5000/generate-chords', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  language: selectedLanguage, 
+                  lyrics: generatedLyrics,
+              }),
+          });
+
+          if (!chord_response.ok) {
+              throw new Error('Network response was not ok');
+          }
+
+          const data = await chord_response.json();
+          const ChordsPart = data.chord_progression;
+          setGeneratedChordProgression(ChordsPart);
+          console.log("GeneratedChordProgression: "+generatedChordProgression);
+
+
+      // Check if files exist
+      const checkResponse = await fetch("http://127.0.0.1:5000/check-files");
+      const checkData = await checkResponse.json();
+  
+      if (!checkData.files_exist) {
+        alert("Lyrics and chord files are missing. Please generate them first.");
+        return;
+      }
+
+      // If files exist, trigger melody generation
+      const response = await fetch("http://127.0.0.1:5000/generate-melody", {
+        mode: 'no-cors',
+        method: "POST",
+      });
+
+      if (response.ok) {
+        console.log("Melody generation started");
+      } else {
+        console.error("Failed to start melody generation");
+      }
+
     } catch (error) {
-      console.error('Error creating music:', error);
+      console.error("Error:", error);
+    } finally {
+      setIsLoadingMelody(false);
     }
   };
+  
 
   const togglePlayPause = () => {
     if (audioRef.current) {
@@ -150,10 +198,10 @@ const MusicGenerator: React.FC = () => {
               <div className="mt-4 flex justify-between items-center">
                 <button
                   onClick={handleGenerateLyrics}
-                  className={`bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={isLoading}
+                  className={`bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded ${isLoadingLyrics ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isLoadingLyrics}
                 >
-                  {isLoading ? 'Loading...' : 'GENERATE THE LYRICS'}
+                  {isLoadingLyrics ? 'Loading...' : 'GENERATE THE LYRICS'}
                 </button>
                 <span className="text-gray-400">
                   {description.length}/300
@@ -163,26 +211,37 @@ const MusicGenerator: React.FC = () => {
 
             {/* Lyrics Display */}
             <div className="bg-gray-800 p-4 rounded-lg">
-              <h2 className="text-xl font-bold mb-4">Lyrics</h2>
-              <textarea
-                value={generatedLyrics}
-                onChange={(e) => setGeneratedLyrics(e.target.value)}
-                readOnly={!isEditing}
-                className="w-full h-48 p-2 bg-gray-700 rounded text-white"
-                placeholder="Click GENERATE LYRICS to see the lyrics..."
-              />
-              <div className="mt-4 flex justify-between items-center">
-                <button
-                  onClick={handleEditLyrics}
-                  className="border border-white px-4 py-2 rounded"
-                >
-                  {isEditing ? 'SAVE' : 'EDIT'}
-                </button>
-                <span className="text-gray-400">
-                  {generatedLyrics.length}/1000
-                </span>
-              </div>
+                <h2 className="text-xl font-bold mb-4">Lyrics</h2>
+                <textarea
+                    value={generatedLyrics}
+                    onChange={(e) => setGeneratedLyrics(e.target.value)}
+                    readOnly={!isEditing}
+                    className="w-full h-48 p-2 bg-gray-700 rounded text-white"
+                    placeholder="Click GENERATE LYRICS to see the lyrics..."
+                />
+                <div className="mt-4 flex justify-between items-center">
+                    <button
+                        onClick={handleEditLyrics}
+                        className="border border-white px-4 py-2 rounded"
+                    >
+                        {isEditing ? 'SAVE' : 'EDIT'}
+                    </button>
+                    <span className="text-gray-400">
+                        {generatedLyrics.length}/1000
+                    </span>
+                </div>
             </div>
+
+            {/* Chord Progression Display */}
+            {/* <div className="bg-gray-800 p-4 rounded-lg mt-6">
+                <h2 className="text-xl font-bold mb-4">Chord Progression</h2>
+                <textarea
+                    value={generatedChordProgression}
+                    readOnly
+                    className="w-full h-16 p-2 bg-gray-700 rounded text-white"
+                    placeholder="Chord Progression will appear here..."
+                />
+            </div> */}
           </div>
 
           {/* Right Panel - New Music Player */}
@@ -263,10 +322,10 @@ const MusicGenerator: React.FC = () => {
         <div className="mt-6 flex justify-center">
           <button
             onClick={handleCreateMusic}
-            className="bg-purple-600 hover:bg-purple-700 px-8 py-4 text-lg rounded"
-            disabled={!generatedLyrics}
+            className={`bg-purple-600 hover:bg-purple-700 px-8 py-4 rounded ${isLoadingMelody ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={isLoadingMelody}
           >
-            🎵 CREATE THE MUSIC! 🎵
+            {isLoadingMelody ? 'Melody Loading...' :'🎵 CREATE THE MUSIC! 🎵'}
           </button>
         </div>
 
