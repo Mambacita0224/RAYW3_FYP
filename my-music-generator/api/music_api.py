@@ -39,12 +39,11 @@ def generate_lyrics():
     """Generates lyrics based on user input."""
     data = request.json
     description = data.get('description', '')
-    language = data.get('language', 'English')
-    style = data.get('style', '')
+    language = data.get('language', '')
     
     lyrics_info = (
-        "Please strictly follow the guidelines below to generate lyrics, especially points 5 and 6:\n"
-        "1. Each song should contain approximately 3 verses and 1 chorus, with each section having 3 to 5 lines. The length of the lines should vary significantly.\n"
+        "Please strictly follow the guidelines below to generate lyrics:\n"
+        "1. Each song should contain approximately 3 verses and 1 chorus, with each section having 3 to 5 lines. No two consecutive lines share same length.\n"
         "2. If the lyrics are in English, use [sep] to separate each sentence, e.g., 'when I'm with you[sep]day and night[sep]'\n"
         "3. If the lyrics are in Chinese (Mandarin or Cantonese), use line breaks to separate each sentence, and do not add [sep].\n"
         "4. Use '/' at the end of the previous section (e.g. 我心不灭/）to separate verses and choruses, do not put it in next line, simply follow the last character.\n"
@@ -97,7 +96,7 @@ def generate_lyrics():
 @app.route('/generate-chords', methods=['POST'])
 def generate_chords():
     data = request.json
-    language = data.get('language', 'English')
+    language = data.get('language', '')
     lyrics = data.get('lyrics', '')
     
     try:
@@ -203,6 +202,8 @@ def check_files():
 @app.route('/generate-melody', methods=['POST'])
 def generate_melody():
     """Runs lyrics_to_melody.py if files exist."""
+    data = request.json
+    voice = data.get('voice', '')
     lyrics_path = os.path.join(ROC_FOLDER, "lyrics.txt")
     chords_path = os.path.join(ROC_FOLDER, "chord_progression.txt")
 
@@ -210,6 +211,7 @@ def generate_melody():
         return jsonify({"error": "Required files not found"}), 400
 
     try:
+        print("The selected voice is", voice)
         subprocess.Popen(["python", "start.py"], cwd=ROC_FOLDER)
         print("Start.py start.")
         return jsonify({"message": "Melody generation started"}), 200

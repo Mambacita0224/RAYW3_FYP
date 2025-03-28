@@ -5,8 +5,8 @@ import { Play, Pause, Volume2, RotateCcw, FastForward } from 'lucide-react';
 
 const MusicGenerator: React.FC = () => {
   const [description, setDescription] = useState('');
-  const [selectedStyle, setSelectedStyle] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [selectedLanguage, setSelectedLanguage] = useState('');
+  const [selectedVoice, setSelectedVoice] = useState('');
   const [generatedLyrics, setGeneratedLyrics] = useState('');
   const [generatedChordProgression, setGeneratedChordProgression] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -22,19 +22,26 @@ const MusicGenerator: React.FC = () => {
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const musicStyles = [
-    { value: 'medieval-rock', label: 'Medieval rock' },
-    { value: 'metal', label: 'Metal' },
-    { value: 'hardcore-hip-hop', label: 'Hardcore Hip-Hop' },
-    { value: 'baroque', label: 'Baroque' },
-    { value: 'edm', label: 'EDM' }
-  ];
-
   const languages = [
     { value: 'english', label: 'English' },
     { value: 'mandarin', label: 'Mandarin' },
     { value: 'cantonese', label: 'Cantonese' }
   ];
+
+  const voices = {
+    english: [
+      { value: 'english-voice-1', label: 'English Voice 1' },
+      { value: 'english-voice-2', label: 'English Voice 2' }
+    ],
+    mandarin: [
+      { value: 'mandarin-voice-1', label: 'Mandarin Voice 1' },
+      { value: 'mandarin-voice-2', label: 'Mandarin Voice 2' }
+    ],
+    cantonese: [
+      { value: 'cantonese-voice-1', label: 'Cantonese Voice 1' },
+      { value: 'cantonese-voice-2', label: 'Cantonese Voice 2' }
+    ]
+  };
 
   const handleGenerateLyrics = async () => {
       setIsLoadingLyrics(true);
@@ -47,7 +54,7 @@ const MusicGenerator: React.FC = () => {
               body: JSON.stringify({
                   description,
                   language: selectedLanguage,
-                  style: selectedStyle,
+                  voice: selectedVoice,
               }),
           });
 
@@ -62,7 +69,7 @@ const MusicGenerator: React.FC = () => {
           
           setSongInfo(prev => ({
               ...prev,
-              title: `${selectedStyle.charAt(0).toUpperCase() + selectedStyle.slice(1)} Song`
+              title: `Generated Song`
           }));
       } catch (error) {
           console.error('Error generating lyrics:', error);
@@ -88,6 +95,7 @@ const MusicGenerator: React.FC = () => {
               body: JSON.stringify({
                   language: selectedLanguage, 
                   lyrics: generatedLyrics,
+                  voice: selectedVoice,
               }),
           });
 
@@ -98,8 +106,6 @@ const MusicGenerator: React.FC = () => {
           const data = await chord_response.json();
           const ChordsPart = data.chord_progression;
           setGeneratedChordProgression(ChordsPart);
-          console.log("GeneratedChordProgression: "+generatedChordProgression);
-
 
       // Check if files exist
       const checkResponse = await fetch("http://127.0.0.1:5000/check-files");
@@ -112,8 +118,13 @@ const MusicGenerator: React.FC = () => {
 
       // If files exist, trigger melody generation
       const response = await fetch("http://127.0.0.1:5000/generate-melody", {
-        mode: 'no-cors',
         method: "POST",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          voice: selectedVoice,
+        }),
       });
 
       if (response.ok) {
@@ -151,39 +162,56 @@ const MusicGenerator: React.FC = () => {
     <div className="p-6 bg-gray-900 min-h-screen text-white">
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Left Panel - Keep existing code for style, language, description, and lyrics */}
           <div className="space-y-6">
-            {/* Style Selection */}
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <h2 className="text-xl font-bold mb-4">Style of Music</h2>
-              <select
-                value={selectedStyle}
-                onChange={(e) => setSelectedStyle(e.target.value)}
-                className="w-full p-2 bg-gray-700 rounded text-white"
-              >
-                <option value="">Select style...</option>
-                {musicStyles.map((style) => (
-                  <option key={style.value} value={style.value}>
-                    {style.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Language Selection */}
             <div className="bg-gray-800 p-4 rounded-lg">
               <h2 className="text-xl font-bold mb-4">Choose Language</h2>
               <select
                 value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
+                onChange={(e) => {
+                  setSelectedLanguage(e.target.value);
+                  setSelectedVoice(''); // Reset voice when language changes
+                }}
                 className="w-full p-2 bg-gray-700 rounded text-white"
               >
+                <option value="" disabled>Select a language...</option>
                 {languages.map((lang) => (
                   <option key={lang.value} value={lang.value}>
                     {lang.label}
                   </option>
                 ))}
               </select>
+            </div>
+            
+            {/* Voice Selection */}
+            <div className="bg-gray-800 p-4 rounded-lg">
+              <h2 className="text-xl font-bold mb-4">Choose Voice</h2>
+              {voices[selectedLanguage]?.map((voice, index) => {
+                //给每个voice一个png icon，可以按照下面的文件命名逻辑
+                //选择voice按钮的时候会试播对应声音的audio mp3
+                const iconPath = `file_path/${selectedLanguage}Icon${index + 1}.png`; // Placeholder for icon
+                const audioPath = `file_path/${selectedLanguage}Voice${index + 1}.mp3`; // Placeholder for audio
+                const isSelected = selectedVoice === voice.value; // Check if this voice is selected
+                return (
+                  <button
+                    key={voice.value}
+                    onClick={() => {
+                      setSelectedVoice(voice.value);
+                      const audio = new Audio(audioPath);
+                      audio.play();
+                    }}
+                    className={`flex items-center justify-between w-full p-2 mb-2 rounded ${
+                      isSelected ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'
+                    }`}
+                  >
+                    <span className="flex items-center">
+                      <img src={iconPath} className="mr-2 w-10 h-10" /> {/* Placeholder for voice icon */}
+                      {voice.label}
+                    </span>
+                    <Play className="ml-2" /> {/* Play icon on the right */}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Description Input */}
@@ -231,17 +259,6 @@ const MusicGenerator: React.FC = () => {
                     </span>
                 </div>
             </div>
-
-            {/* Chord Progression Display */}
-            {/* <div className="bg-gray-800 p-4 rounded-lg mt-6">
-                <h2 className="text-xl font-bold mb-4">Chord Progression</h2>
-                <textarea
-                    value={generatedChordProgression}
-                    readOnly
-                    className="w-full h-16 p-2 bg-gray-700 rounded text-white"
-                    placeholder="Chord Progression will appear here..."
-                />
-            </div> */}
           </div>
 
           {/* Right Panel - New Music Player */}
@@ -250,7 +267,7 @@ const MusicGenerator: React.FC = () => {
             <div className="space-y-6">
               {/* Visualization/Album Art */}
               <div className="aspect-square bg-gray-700 rounded-lg overflow-hidden flex items-center justify-center">
-                {selectedStyle ? (
+                {generatedLyrics ? (
                   <img
                     src={`/api/placeholder/400/400`}
                     alt="Music Visualization"
@@ -258,7 +275,7 @@ const MusicGenerator: React.FC = () => {
                   />
                 ) : (
                   <div className="text-gray-400 text-center p-4">
-                    Select a style and generate music to see visualization
+                    Generate music to see visualization
                   </div>
                 )}
               </div>
@@ -266,7 +283,7 @@ const MusicGenerator: React.FC = () => {
               {/* Song Info */}
               <div className="text-center">
                 <h3 className="text-xl font-bold">{songInfo.title || "No song generated"}</h3>
-                <p className="text-gray-400">{selectedStyle || "Select a style"}</p>
+                <p className="text-gray-400">{selectedLanguage || "Select a language"}</p>
               </div>
 
               {/* Progress Bar */}
