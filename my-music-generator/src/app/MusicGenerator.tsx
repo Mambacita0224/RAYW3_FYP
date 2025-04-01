@@ -64,12 +64,13 @@ const MusicGenerator: React.FC = () => {
 
           const data = await response.json();
           const lyricsPart = data.lyrics;
+          const songTitle = data.title;
 
           setGeneratedLyrics(lyricsPart); // 设置歌词
           
           setSongInfo(prev => ({
               ...prev,
-              title: `Generated Song`
+              title: songTitle
           }));
       } catch (error) {
           console.error('Error generating lyrics:', error);

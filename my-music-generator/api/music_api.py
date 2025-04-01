@@ -44,6 +44,7 @@ def generate_lyrics():
     lyrics_info = (
         "Please strictly follow the guidelines below to generate lyrics:\n"
         "1. Each song should contain approximately 3 verses and 1 chorus, with each section having 3 to 5 lines. No two consecutive lines share same length.\n"
+        "For example, in chinese lyrics, if the first generated sentence contain 3 characters like '你锁眉', the next line should different number of characters like 6 or more '哭红颜唤不回'.\n"
         "2. If the lyrics are in English, use [sep] to separate each sentence, e.g., 'when I'm with you[sep]day and night[sep]'\n"
         "3. If the lyrics are in Chinese (Mandarin or Cantonese), use line breaks to separate each sentence, and do not add [sep].\n"
         "4. Use '/' at the end of the previous section (e.g. 我心不灭/）to separate verses and choruses, do not put it in next line, simply follow the last character.\n"
@@ -55,7 +56,7 @@ def generate_lyrics():
         f"Please create a set of {language} lyrics based on the following requirements, especially the generation guidelines:\n"
         f"1. Description: {description}\n"
         f"2. Generation Requirements: {lyrics_info}"
-        f"3. Provide the following three elements in the specified format:\n"
+        f"3. Must provide the following two elements in the specified format and order:\n"
         f"Song Title: 《...》\n"
         f"Lyrics: ...\n"
     )
@@ -78,7 +79,7 @@ def generate_lyrics():
         parts = full_content.split("Lyrics:")
         song_title = parts[0].replace("Song Title:", "").strip().replace("*", "")
         lyrics = parts[1].strip().replace("*", "")
-            
+        
         # Split lyrics and chord progression
         # lyrics = full_content
         print("Song Title: ", song_title)
@@ -86,6 +87,7 @@ def generate_lyrics():
 
         return jsonify({
             'lyrics': lyrics,
+            'title': song_title,
             'time_taken': elapsed_time,
         })
 
@@ -145,10 +147,19 @@ def generate_chords():
         f"Remember, the last chord of the verse and chorus should be C if is_major=1, and A if is_major=0."
         f"Generate a set of chord progression for each line of lyrics."
         f"Directly answer with the chord progression generated only."
-        f"Below is the sample format:\n"
-        f"C E:7\n"
-        f"A:m G\n"
-        f"D:m G C\n"
+        f"Ensure each chord is followed by a ':' and appropriate suffix based on the following rules:\n"
+        f"- Major chords should have ' ' after ':' (e.g., C: G: )\n"
+        f"- Minor chords should have 'm' after ':' (e.g., A:m: G:m)\n"
+        f"- Augmented chords should have '+' after ':' (e.g., C:+ G:+)\n"
+        f"- Diminished chords should have 'dim' after ':' (e.g., A:dim G:dim)\n"
+        f"- Dominant 7th chords should have '7' after ':' (e.g., E:7)\n"
+        f"- Major 7th chords should have 'maj7' after ':' (e.g., C:maj7)\n"
+        f"- Minor 7th chords should have 'm7' after ':' (e.g., A:m7)\n"
+        f"- Half-diminished 7th chords should have 'm7b5' after ':' (e.g., A:m7b5)\n"
+        f"Below is the sample format of output:\n"
+        f"C: E:7\n"
+        f"A:m G: \n"
+        f"D:m G: C: \n"
     )
     
     try:
@@ -173,10 +184,20 @@ def generate_chords():
 
         with open(lyrics_file_path, 'w', encoding='utf-8') as lyrics_file:
             lyrics_file.write(lyrics_content)
-            print("Lyrics content:\n ",lyrics_content)
 
         with open(chords_file_path, 'w', encoding='utf-8') as chords_file:
             chords_file.write(chord_progression)
+            
+        def remove_blank_lines(file_path):
+            with open(file_path, 'r+', encoding='utf-8') as file:
+                lines = file.readlines()
+                non_blank_lines = [line for line in lines if line.strip()]
+                file.seek(0)
+                file.truncate()
+                file.writelines(non_blank_lines)
+        
+        remove_blank_lines(lyrics_file_path)
+        remove_blank_lines(chords_file_path)
         
         return jsonify({
             'chord_progression': chord_progression,
