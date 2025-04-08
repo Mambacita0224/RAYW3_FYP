@@ -1,6 +1,6 @@
 // src/app/MusicGenerator.tsx
 "use client";  // 标记为客户端组件
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, RotateCcw, FastForward } from 'lucide-react';
 
 const MusicGenerator: React.FC = () => {
@@ -14,10 +14,13 @@ const MusicGenerator: React.FC = () => {
   const [isLoadingMelody, setIsLoadingMelody] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioUrl, setAudioUrl] = useState('');
+  const [audioLastChecked, setAudioLastChecked] = useState<number>(0);
+  const [audioCheckInterval, setAudioCheckInterval] = useState<NodeJS.Timeout | null>(null);
   const [songInfo, setSongInfo] = useState({
     title: '',
     duration: '0:00',
-    currentTime: '0:00'
+    currentTime: '0:00',
+    progress: 0
   });
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -83,6 +86,53 @@ const MusicGenerator: React.FC = () => {
     setIsEditing(!isEditing);
   };
 
+  useEffect(() => {
+    // Function to check for audio updates
+    const checkForAudio = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:5000/check-audio-status');
+        const data = await response.json();
+        
+        if (data.exists) {
+          // Check if the file has been updated since last check
+          if (data.last_modified !== audioLastChecked) {
+            setAudioLastChecked(data.last_modified);
+            // Update audio URL with cache-busting query parameter
+            setAudioUrl(`http://127.0.0.1:5000/get-audio?t=${Date.now()}`);
+            
+            // If we were already playing, restart playback with new audio
+            if (isPlaying && audioRef.current) {
+              audioRef.current.load();
+              audioRef.current.play();
+            }
+            
+            // Update song info
+            setSongInfo(prev => ({
+              ...prev,
+              title: songInfo.title,
+              duration: "0:00" // Will be updated when audio loads
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error checking for audio:", error);
+      }
+    };
+  
+    // Start polling when the component mounts
+    if (isLoadingMelody) {
+      const interval = setInterval(checkForAudio, 10000); // Check every 10 seconds
+      setAudioCheckInterval(interval);
+    }
+  
+    // Clean up on component unmount or when loading state changes
+    return () => {
+      if (audioCheckInterval) {
+        clearInterval(audioCheckInterval);
+      }
+    };
+  }, [isLoadingMelody, audioLastChecked]);
+
   const handleCreateMusic = async () => {
     setIsLoadingMelody(true);
     if (!generatedLyrics) return;
@@ -130,6 +180,8 @@ const MusicGenerator: React.FC = () => {
 
       if (response.ok) {
         console.log("Melody generation started");
+        // Start checking for audio file (polling will begin due to useEffect)
+        setAudioLastChecked(0); // Reset last checked timestamp
       } else {
         console.error("Failed to start melody generation");
       }
@@ -291,7 +343,7 @@ const MusicGenerator: React.FC = () => {
               <div className="w-full bg-gray-700 rounded-full h-2">
                 <div
                   className="bg-purple-600 h-2 rounded-full"
-                  style={{ width: '0%' }}
+                  style={{ width: `${songInfo.progress || 0}%` }}
                 />
               </div>
 
@@ -350,15 +402,26 @@ const MusicGenerator: React.FC = () => {
         {/* Hidden audio element */}
         <audio
           ref={audioRef}
-          src={audioUrl}
+          src={audioUrl || undefined} // Use undefined instead of empty string
           onTimeUpdate={() => {
             if (audioRef.current) {
+              const currentTime = audioRef.current.currentTime;
+              const duration = audioRef.current.duration || 0;
+              const progressPercent = (currentTime / duration) * 100 || 0;
+              
               setSongInfo(prev => ({
                 ...prev,
-                currentTime: formatTime(audioRef.current?.currentTime || 0),
-                duration: formatTime(audioRef.current?.duration || 0)
+                currentTime: formatTime(currentTime),
+                duration: formatTime(duration),
+                progress: progressPercent // Add this to your songInfo state
               }));
             }
+          }}
+          onEnded={() => setIsPlaying(false)}
+          onCanPlay={() => {
+            console.log("Audio can play now");
+            // Optional: Auto-play when ready
+            // if (isPlaying) audioRef.current?.play();
           }}
         />
       </div>

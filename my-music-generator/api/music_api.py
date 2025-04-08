@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
 import time
@@ -29,7 +29,9 @@ client = OpenAI(
 # Define the ROC folder path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # ROC_FOLDER = 'os.path.join(BASE_DIR, '../../../roc')'
-ROC_FOLDER = 'D:\FYP\ROC_fyp'
+# ROC_FOLDER = 'D:\FYP\ROC_fyp'
+ROC_FOLDER = "/Users/zengyuhang/Desktop/academic/fyp/fyp_code_latest/RAYW3_FYP/roc"
+# Try how to navigate to the roc folder using the relative path
 
 # Ensure ROC folder exists
 os.makedirs(ROC_FOLDER, exist_ok=True)
@@ -238,6 +240,40 @@ def generate_melody():
         return jsonify({"message": "Melody generation started"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/check-audio-status', methods=['GET'])
+def check_audio_status():
+    """
+    Check if final_song.wav exists in the roc folder.
+    If found, return information about the file.
+    """
+    audio_path = os.path.join(ROC_FOLDER, "final_song.wav") # Modify according to the song name
+    
+    if os.path.exists(audio_path):
+        # Get last modified time
+        last_modified = os.path.getmtime(audio_path)
+        file_size = os.path.getsize(audio_path)
+        
+        return jsonify({
+            "exists": True,
+            "last_modified": last_modified,
+            "file_size": file_size,
+            "file_path": audio_path
+        })
+    else:
+        return jsonify({"exists": False})
+
+@app.route('/get-audio', methods=['GET'])
+def get_audio():
+    """
+    Send the final_song.wav file if it exists.
+    """
+    audio_path = os.path.join(ROC_FOLDER, "final_song.wav") # Modify according tp the song name
+    
+    if not os.path.exists(audio_path):
+        return jsonify({"error": "Audio file not found"}), 404
+        
+    return send_file(audio_path, mimetype='audio/wav')
 
 
 if __name__ == '__main__':
