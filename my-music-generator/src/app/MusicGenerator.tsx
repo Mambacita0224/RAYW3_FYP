@@ -47,6 +47,18 @@ const MusicGenerator: React.FC = () => {
   };
 
   const handleGenerateLyrics = async () => {
+      if (!selectedLanguage) {
+        alert("Please select a language.");
+        return;
+      }
+      if (!selectedVoice) {
+        alert("Please select a voice.");
+        return;
+      }
+      if (!description) {
+        alert("Please fill in the description of the music.");
+        return;
+      }
       setIsLoadingLyrics(true);
       try {
           const response = await fetch('http://127.0.0.1:5000/generate-lyrics', {
@@ -66,6 +78,12 @@ const MusicGenerator: React.FC = () => {
           }
 
           const data = await response.json();
+
+          if (data.validity) {
+              alert(data.validity);
+              return;
+          }
+
           const lyricsPart = data.lyrics;
           const songTitle = data.title;
 
@@ -155,6 +173,12 @@ const MusicGenerator: React.FC = () => {
           }
 
           const data = await chord_response.json();
+
+          if (data.validity) {
+              alert(data.validity);
+              return;
+          }
+
           const ChordsPart = data.chord_progression;
           setGeneratedChordProgression(ChordsPart);
 
@@ -273,7 +297,7 @@ const MusicGenerator: React.FC = () => {
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter the description of the song and click GENERATE THE LYRICS!"
+                placeholder="Enter the description of the song and click GENERATE THE LYRICS. Including the emotion of the song (e.g., happy, sad) will create a better effect!"
                 className="w-full h-32 p-2 bg-gray-700 rounded text-white"
               />
               <div className="mt-4 flex justify-between items-center">
