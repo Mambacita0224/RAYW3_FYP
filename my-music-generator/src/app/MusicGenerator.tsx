@@ -1,7 +1,7 @@
 // src/app/MusicGenerator.tsx
 "use client";  // 标记为客户端组件
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, RotateCcw, FastForward } from 'lucide-react';
+import { Play, Pause, Volume2, Rewind, FastForward, Download } from 'lucide-react';
 
 const MusicGenerator: React.FC = () => {
   const [description, setDescription] = useState('');
@@ -16,6 +16,11 @@ const MusicGenerator: React.FC = () => {
   const [audioUrl, setAudioUrl] = useState('');
   const [audioLastChecked, setAudioLastChecked] = useState<number>(0);
   const [audioCheckInterval, setAudioCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isLoadingAlbumCover, setIsLoadingAlbumCover] = useState(false);
+  const [albumCoverUrl, setAlbumCoverUrl] = useState('');
+  const [volume, setVolume] = useState(100);
+  const [isDraggingProgress, setIsDraggingProgress] = useState(false);
+  const [isDraggingVolume, setIsDraggingVolume] = useState(false);
   const [songInfo, setSongInfo] = useState({
     title: '',
     duration: '0:00',
@@ -24,6 +29,29 @@ const MusicGenerator: React.FC = () => {
   });
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const progressRef = useRef<HTMLDivElement | null>(null);
+  const volumeRef = useRef<HTMLInputElement | null>(null);
+
+  // Improved SVG for Rewind 15s button with circular arrow and text
+  const Back15Icon = () => (
+    <div style={{ textAlign: 'center' }}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M 3 12 A 9 9 0 0 0 12 21 A 9 9 0 0 0 21 12 A 9 9 0 0 0 12 3" fill="none" />
+            <polyline points="12 1 10 3 12 5" />
+            <text x="12" y="16" fontSize="8" textAnchor="middle" fill="currentColor" strokeWidth="1" >15</text>
+        </svg>
+    </div>
+);
+
+const Forward15Icon = () => (
+  <div style={{ textAlign: 'center' }}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M 21 12 A 9 9 0 0 1 12 21 A 9 9 0 0 1 3 12 A 9 9 0 0 1 12 3" fill="none" />
+          <polyline points="12 1 14 3 12 5" />
+          <text x="12" y="16" fontSize="8" textAnchor="middle" fill="currentColor" strokeWidth="1" >15</text>
+      </svg>
+  </div>
+);
 
   const languages = [
     { value: 'english', label: 'English' },
@@ -47,18 +75,6 @@ const MusicGenerator: React.FC = () => {
   };
 
   const handleGenerateLyrics = async () => {
-      if (!selectedLanguage) {
-        alert("Please select a language.");
-        return;
-      }
-      if (!selectedVoice) {
-        alert("Please select a voice.");
-        return;
-      }
-      if (!description) {
-        alert("Please fill in the description of the music.");
-        return;
-      }
       setIsLoadingLyrics(true);
       try {
           const response = await fetch('http://127.0.0.1:5000/generate-lyrics', {
@@ -78,12 +94,6 @@ const MusicGenerator: React.FC = () => {
           }
 
           const data = await response.json();
-
-          if (data.validity) {
-              alert(data.validity);
-              return;
-          }
-
           const lyricsPart = data.lyrics;
           const songTitle = data.title;
 
@@ -112,44 +122,114 @@ const MusicGenerator: React.FC = () => {
         const data = await response.json();
         
         if (data.exists) {
-          // Check if the file has been updated since last check
-          if (data.last_modified !== audioLastChecked) {
-            setAudioLastChecked(data.last_modified);
-            // Update audio URL with cache-busting query parameter
-            setAudioUrl(`http://127.0.0.1:5000/get-audio?t=${Date.now()}`);
-            
-            // If we were already playing, restart playback with new audio
-            if (isPlaying && audioRef.current) {
-              audioRef.current.load();
-              audioRef.current.play();
-            }
-            
-            // Update song info
-            setSongInfo(prev => ({
-              ...prev,
-              title: songInfo.title,
-              duration: "0:00" // Will be updated when audio loads
-            }));
+          // Audio found, stop polling
+          console.log("Audio file found:", data);
+          if (audioCheckInterval) {
+            clearInterval(audioCheckInterval);
+            setAudioCheckInterval(null);
           }
+          
+          // Update audio URL with cache-busting query parameter
+          setAudioUrl(`http://127.0.0.1:5000/get-audio?t=${Date.now()}`);
+          
+          // If we were starting the process, start playback
+          if (audioRef.current) {
+            audioRef.current.load();
+            // Wait a moment to ensure audio is loaded
+            setTimeout(() => {
+              if (audioRef.current) {
+                audioRef.current.play()
+                  .then(() => setIsPlaying(true))
+                  .catch(err => console.error("Error playing audio:", err));
+              }
+            }, 500);
+          }
+          
+          // Update song info
+          setSongInfo(prev => ({
+            ...prev,
+            duration: "0:00" // Will be updated when audio loads
+          }));
         }
       } catch (error) {
         console.error("Error checking for audio:", error);
       }
     };
   
-    // Start polling when the component mounts
-    if (isLoadingMelody) {
+    // Start polling when the melody generation is requested
+    if (isLoadingMelody && !audioCheckInterval) {
       const interval = setInterval(checkForAudio, 10000); // Check every 10 seconds
       setAudioCheckInterval(interval);
+      // Do an immediate check
+      checkForAudio();
     }
   
-    // Clean up on component unmount or when loading state changes
+    // Clean up on component unmount
     return () => {
       if (audioCheckInterval) {
         clearInterval(audioCheckInterval);
       }
     };
-  }, [isLoadingMelody, audioLastChecked]);
+  }, [isLoadingMelody, audioRef, audioCheckInterval]);
+
+  // Update the useEffect for handling audio element changes
+  useEffect(() => {
+    if (audioRef.current && audioUrl) {
+      audioRef.current.load();
+      
+      // Check if we should auto-play
+      if (isPlaying) {
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error("Playback error:", error);
+            setIsPlaying(false);
+          });
+        }
+      }
+    }
+  }, [audioUrl]);
+
+  // Add this function to handle album cover generation
+  const generateAlbumCover = async () => {
+    if (!songInfo.title || !description || !generatedLyrics) {
+      console.error("Missing required information for album cover generation");
+      return;
+    }
+    
+    setIsLoadingAlbumCover(true);
+    
+    try {
+      const response = await fetch('http://127.0.0.1:5000/generate-album-cover', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: songInfo.title,
+          description: description,
+          lyrics: generatedLyrics,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate album cover');
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Set the album cover URL with a cache buster
+        setAlbumCoverUrl(`http://127.0.0.1:5000/get-album-cover?t=${Date.now()}`);
+      } else {
+        console.error("Album cover generation failed:", data.error);
+      }
+    } catch (error) {
+      console.error("Error generating album cover:", error);
+    } finally {
+      setIsLoadingAlbumCover(false);
+    }
+  };
 
   const handleCreateMusic = async () => {
     setIsLoadingMelody(true);
@@ -173,12 +253,6 @@ const MusicGenerator: React.FC = () => {
           }
 
           const data = await chord_response.json();
-
-          if (data.validity) {
-              alert(data.validity);
-              return;
-          }
-
           const ChordsPart = data.chord_progression;
           setGeneratedChordProgression(ChordsPart);
 
@@ -190,6 +264,9 @@ const MusicGenerator: React.FC = () => {
         alert("Lyrics and chord files are missing. Please generate them first.");
         return;
       }
+
+      // Start album cover generation in parallel with melody generation
+      generateAlbumCover();
 
       // If files exist, trigger melody generation
       const response = await fetch("http://127.0.0.1:5000/generate-melody", {
@@ -217,15 +294,103 @@ const MusicGenerator: React.FC = () => {
     }
   };
   
-
+  // Toggle play/pause
   const togglePlayPause = () => {
-    if (audioRef.current) {
+    if (audioRef.current && audioUrl) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        // Use a promise to handle the play request properly
+        const playPromise = audioRef.current.play();
+        
+        // If the play() method returns a promise (modern browsers)
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              // Playback started successfully
+            })
+            .catch(error => {
+              // Auto-play was prevented or other error
+              console.error("Playback error:", error);
+              setIsPlaying(false);
+            });
+        }
       }
       setIsPlaying(!isPlaying);
+    }
+  };
+
+  const skipForward = () => {
+    if (audioRef.current && audioUrl) {
+      audioRef.current.currentTime = Math.min(
+        audioRef.current.currentTime + 15,
+        audioRef.current.duration || 0
+      );
+    }
+  };
+  
+  const skipBackward = () => {
+    if (audioRef.current && audioUrl) {
+      audioRef.current.currentTime = Math.max(
+        audioRef.current.currentTime - 15,
+        0
+      );
+    }
+  };
+
+  // Enhanced volume change handler with drag state
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseInt(e.target.value);
+    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume / 100;
+    }
+  };
+
+  // Enhanced progress bar click/drag with improved interaction
+  const handleProgressChange = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (audioRef.current && progressRef.current && audioUrl) {
+      const progressBar = progressRef.current;
+      const rect = progressBar.getBoundingClientRect();
+      const clickPosition = (e.clientX - rect.left) / rect.width;
+      const newTime = clickPosition * (audioRef.current.duration || 0);
+      
+      // Set new time
+      audioRef.current.currentTime = newTime;
+      
+      // Update UI
+      setSongInfo(prev => ({
+        ...prev,
+        currentTime: formatTime(newTime),
+        progress: clickPosition * 100
+      }));
+    }
+  };
+
+  // Mouse down handler for progress bar
+  const handleProgressMouseDown = () => {
+    setIsDraggingProgress(true);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+  
+  // Mouse down handler for volume control
+  const handleVolumeMouseDown = () => {
+    setIsDraggingVolume(true);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Mouse up handler for both controls
+  const handleMouseUp = () => {
+    setIsDraggingProgress(false);
+    setIsDraggingVolume(false);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+
+  // Improved download handler that opens in a new tab
+  const handleDownload = () => {
+    if (audioUrl) {
+      // Open the download URL in a new tab
+      window.open(`http://127.0.0.1:5000/get-audio?download=true&t=${Date.now()}`, '_blank');
     }
   };
 
@@ -344,15 +509,28 @@ const MusicGenerator: React.FC = () => {
             <div className="space-y-6">
               {/* Visualization/Album Art */}
               <div className="aspect-square bg-gray-700 rounded-lg overflow-hidden flex items-center justify-center">
-                {generatedLyrics ? (
+                {isLoadingAlbumCover ? (
+                  // Loading spinner while generating album cover
+                  <div className="text-center p-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-2"></div>
+                    <p className="text-gray-300">Generating album cover...</p>
+                  </div>
+                ) : albumCoverUrl ? (
+                  // Display the generated album cover
                   <img
-                    src={`/api/placeholder/400/400`}
-                    alt="Music Visualization"
+                    src={albumCoverUrl}
+                    alt="Album Cover"
                     className="w-full h-full object-cover"
                   />
+                ) : generatedLyrics ? (
+                  // Placeholder before album cover is generated
+                  <div className="text-center p-4">
+                    <p className="text-gray-400">Generate the music to generate album cover</p>
+                  </div>
                 ) : (
+                  // Default state when no lyrics are generated yet
                   <div className="text-gray-400 text-center p-4">
-                    Generate music to see visualization
+                    Generate lyrics to create music and album cover
                   </div>
                 )}
               </div>
@@ -363,12 +541,37 @@ const MusicGenerator: React.FC = () => {
                 <p className="text-gray-400">{selectedLanguage || "Select a language"}</p>
               </div>
 
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-700 rounded-full h-2">
+               {/* Download Button - Moved to top corner */}
+
+               <div className="flex justify-end mb-2">
+                <button 
+                  className="flex items-center bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm"
+                  onClick={handleDownload}
+                  disabled={!audioUrl}
+                  title="Download song"
+                >
+                  <Download className={`w-4 h-4 mr-1 ${!audioUrl ? 'opacity-50' : ''}`} />
+                  Download
+                </button>
+                </div>
+
+              {/* Interactive Progress Bar */}
+              <div 
+                ref={progressRef}
+                className={`w-full bg-gray-700 rounded-full h-2 ${audioUrl ? 'cursor-pointer' : 'cursor-not-allowed'} relative group`}
+                onClick={audioUrl ? handleProgressChange : undefined}
+              >
                 <div
-                  className="bg-purple-600 h-2 rounded-full"
+                  className="bg-purple-600 h-2 rounded-full relative"
                   style={{ width: `${songInfo.progress || 0}%` }}
-                />
+                  >
+                  {/* Draggable handle that appears larger when active */}
+                  <div 
+                    className={`absolute right-0 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-white rounded-full transition-all ${
+                      isDraggingProgress || audioUrl && 'group-hover:scale-150'
+                    } ${isDraggingProgress ? 'scale-200 shadow-lg' : ''}`}
+                  ></div>
+                </div>
               </div>
 
               {/* Time */}
@@ -378,13 +581,20 @@ const MusicGenerator: React.FC = () => {
               </div>
 
               {/* Controls */}
-              <div className="flex justify-center items-center space-x-6">
-                <button className="p-2 hover:text-purple-500">
-                  <RotateCcw className="w-6 h-6" />
+              <div className="flex justify-center items-center space-x-4">
+                <button 
+                  className="p-2 hover:text-purple-500 transition-colors"
+                  onClick={skipBackward}
+                  title="Rewind 15 seconds"
+                >
+                  <Back15Icon/>
                 </button>
                 <button
                   onClick={togglePlayPause}
-                  className="p-4 bg-purple-600 rounded-full hover:bg-purple-700"
+                  className={`p-4 rounded-full transition-all duration-200  ${
+                    audioUrl ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-600 cursor-not-allowed'
+                  }`}
+                  disabled={!audioUrl}
                 >
                   {isPlaying ? (
                     <Pause className="w-8 h-8" />
@@ -392,21 +602,42 @@ const MusicGenerator: React.FC = () => {
                     <Play className="w-8 h-8" />
                   )}
                 </button>
-                <button className="p-2 hover:text-purple-500">
-                  <FastForward className="w-6 h-6" />
+                <button 
+                  className="p-2 hover:text-purple-500 transition-colors"
+                  onClick={skipForward}
+                  title="Forward 15 seconds"
+                >
+                  <Forward15Icon/>
                 </button>
               </div>
 
-              {/* Volume Control */}
-              <div className="flex items-center space-x-2">
+              {/* Enhanced Volume Control */}
+              <div className="flex items-center space-x-2 group">
                 <Volume2 className="w-5 h-5" />
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  defaultValue="100"
-                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
+                <div className="relative w-full h-4 flex items-center">
+                  <div className="absolute w-full h-2 bg-gray-700 rounded-lg"></div>
+                  <div 
+                    className="absolute h-2 bg-purple-600 rounded-lg" 
+                    style={{ width: `${volume}%` }}
+                  ></div>
+                  <input
+                    ref={volumeRef}
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                    onMouseDown={handleVolumeMouseDown}
+                    className="absolute w-full h-2 opacity-0 cursor-pointer z-10"
+                  />
+                  {/* Draggable handle for volume control */}
+                  <div 
+                    className={`absolute h-4 w-4 rounded-full bg-white pointer-events-none transition-all z-20 ${
+                      isDraggingVolume ? 'scale-125 shadow-lg' : 'group-hover:scale-110'
+                    }`}
+                    style={{ left: `calc(${volume}% - 8px)` }}
+                  ></div>
+                </div>
               </div>
             </div>
           </div>
@@ -416,7 +647,7 @@ const MusicGenerator: React.FC = () => {
         <div className="mt-6 flex justify-center">
           <button
             onClick={handleCreateMusic}
-            className={`bg-purple-600 hover:bg-purple-700 px-8 py-4 rounded ${isLoadingMelody ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`bg-purple-600 hover:bg-purple-700 px-8 py-4 rounded transition-all duration-200 ${isLoadingMelody ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
             disabled={isLoadingMelody}
           >
             {isLoadingMelody ? 'Melody Loading...' :'🎵 CREATE THE MUSIC! 🎵'}
@@ -427,6 +658,8 @@ const MusicGenerator: React.FC = () => {
         <audio
           ref={audioRef}
           src={audioUrl || undefined} // Use undefined instead of empty string
+          onLoadedData={() => console.log("Audio loaded successfully", audioUrl)}
+          onError={(e) => console.error("Audio error:", e)}
           onTimeUpdate={() => {
             if (audioRef.current) {
               const currentTime = audioRef.current.currentTime;

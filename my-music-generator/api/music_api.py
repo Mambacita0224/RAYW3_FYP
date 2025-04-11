@@ -6,6 +6,11 @@ import subprocess
 import random
 import re
 from openai import OpenAI
+from openai import AzureOpenAI
+import base64
+import io
+import requests
+from PIL import Image
 
 app = Flask(__name__)
 CORS(app)
@@ -26,11 +31,25 @@ client = OpenAI(
     base_url="https://api.deepseek.com",
 )
 
+# Azure OpenAI endpoint and API key for album generation
+# API_KEY = "b9e6f30f3ab7419db88dec0fd2b73b99"
+# ENDPOINT = "https://hkust.azure-api.net"
+# client_openai = AzureOpenAI(
+#        api_key=API_KEY,
+#        api_version="2024-06-01",
+#        azure_endpoint="https://hkust.azure-api.net/",
+#    )
+
+# OpenAI api ket for album generation
+client_openAI = OpenAI(
+    api_key='YOUR_API_KEY_HERE'
+)
+
 # Define the ROC folder path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # ROC_FOLDER = 'os.path.join(BASE_DIR, '../../../roc')'
-ROC_FOLDER = 'D:\FYP\ROC_fyp'
-# ROC_FOLDER = "/Users/zengyuhang/Desktop/academic/fyp/fyp_code_latest/RAYW3_FYP/roc"
+# ROC_FOLDER = 'D:\FYP\ROC_fyp'
+ROC_FOLDER = "/Users/zengyuhang/Desktop/academic/fyp/fyp_code_latest/RAYW3_FYP/roc"
 # Try how to navigate to the roc folder using the relative path
 
 # Ensure ROC folder exists
@@ -476,14 +495,109 @@ def check_audio_status():
 def get_audio():
     """
     Send the final_song.wav file if it exists.
+    Optional query parameter 'download=true' will set headers for download.
     """
-    audio_path = os.path.join(ROC_FOLDER, "final_song.wav") # Modify according tp the song name
+    audio_path = os.path.join(ROC_FOLDER, "final_song.wav")
     
     if not os.path.exists(audio_path):
         return jsonify({"error": "Audio file not found"}), 404
-        
-    return send_file(audio_path, mimetype='audio/wav')
+    
+    # Check if this is a download request
+    download = request.args.get('download', 'false').lower() == 'true'
+    
+    # Set cache control headers to prevent caching
+    response = send_file(
+        audio_path,
+        mimetype='audio/wav',
+        as_attachment=download,
+        download_name="generated_song.wav" if download else None
+    )
+    
+    # Add cache control headers
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
+@app.route('/generate-album-cover', methods=['POST'])
+def generate_album_cover():
+    """Generates an album cover image using DALLE based on song information."""
+    data = request.json
+    # Log incoming data
+    print(f"Received request with data: {data}")
+    title = data.get('title', '')
+    description = data.get('description', '')
+    lyrics_snippet = data.get('lyrics', '')
+    
+    # Take just the first few lines of lyrics for context
+    lyrics_lines = lyrics_snippet.strip().split('\n')
+    short_lyrics = '\n'.join(lyrics_lines[:4]) if len(lyrics_lines) > 4 else lyrics_snippet
+    
+    # Construct the prompt for DALLE
+    prompt = f"Create an album cover for a song titled '{title}'. The song is about: {description}. Some lyrics: {short_lyrics}. Make it artistic, emotional, and suitable for a music album cover."
+
+    try:
+        # Generate image using DALLE via the same client used for other API calls
+        response = client_openAI.images.generate(
+            model="dall-e-3",  # Use DALLE-3 or whatever model is available in your setup
+            prompt=prompt,
+            n=1,
+            size="1024x1024"
+        )
+        
+        # Get the image URL or data
+        if hasattr(response, 'data') and len(response.data) > 0:
+            image_url = response.data[0].url
+            
+            # If the response contains a URL, you can either:
+            # 1. Return the URL directly (if it's publicly accessible)
+            # return jsonify({"album_cover_url": image_url})
+            
+            # 2. Or download and save the image to serve locally
+            image_response = requests.get(image_url)
+            
+            if image_response.status_code == 200:
+                # Save the image to the ROC folder
+                album_cover_path = os.path.join(ROC_FOLDER, "album_cover.jpg")
+                with open(album_cover_path, "wb") as f:
+                    f.write(image_response.content)
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Album cover generated successfully",
+                    "album_cover_path": album_cover_path
+                })
+            else:
+                return jsonify({"error": "Failed to download the generated image"}), 500
+        else:
+            return jsonify({"error": "No image was generated"}), 500
+            
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Detailed error: {error_details}")
+        return jsonify({'error': str(e)}), 500
+
+# Add a new endpoint to serve the album cover
+@app.route('/get-album-cover', methods=['GET'])
+def get_album_cover():
+    """Serve the generated album cover image."""
+    album_cover_path = os.path.join(ROC_FOLDER, "album_cover.jpg")
+    
+    if os.path.exists(album_cover_path):
+        # Set cache control headers to prevent caching
+        response = send_file(
+            album_cover_path,
+            mimetype='image/jpeg'
+        )
+        
+        # Add cache control headers
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    else:
+        return jsonify({"error": "Album cover not found"}), 404
 
 if __name__ == '__main__':
     app.run(port=5000, debug=False)
