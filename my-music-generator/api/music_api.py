@@ -42,15 +42,14 @@ client = OpenAI(
 
 # OpenAI api ket for album generation
 client_openAI = OpenAI(
-    api_key='YOUR_API_KEY_HERE'
+    api_key='YOUR_KEY_HERE'
 )
 
 # Define the ROC folder path
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# ROC_FOLDER = os.path.join(BASE_DIR, '../../../')
+# BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# ROC_FOLDER = 'os.path.join(BASE_DIR, '../../../roc')'
 # ROC_FOLDER = 'D:\FYP\MusicGeneration'
-ROC_FOLDER = 'D:\FYP\ROC_fyp'
-# ROC_FOLDER = "/Users/zengyuhang/Desktop/academic/fyp/fyp_code_latest/RAYW3_FYP/roc"
+ROC_FOLDER = "/Users/zengyuhang/Desktop/academic/fyp/fyp_code_latest/RAYW3_FYP/roc"
 # Try how to navigate to the roc folder using the relative path
 
 # Ensure ROC folder exists
@@ -102,7 +101,7 @@ def generate_lyrics():
         if filename.endswith('.wav') or filename.endswith('.midi'):
             file_path = os.path.join(ROC_FOLDER, filename)
             os.remove(file_path)
-    
+
     data = request.json
     description = data.get('description', '')
     language = data.get('language', '')
@@ -486,6 +485,8 @@ def generate_melody():
     voice_value = voice.get('value', '')  # 例如 'yousaV1.5.zip'
     voice_label = voice.get('label', '')  # 例如 'yousa'
     language = data.get('language', '')  # 获取前端传递的 language 参数
+    import os
+    print("os module:", os)
     lyrics_path = os.path.join(ROC_FOLDER, "lyrics.txt")
     chords_path = os.path.join(ROC_FOLDER, "chord_progression.txt")
     phonemizer = ''
@@ -493,22 +494,62 @@ def generate_melody():
         phonemizer = 'DiffSingerChinesePhonemizer'
     elif language == 'cantonese':
         phonemizer = 'DiffSingerJyutpingPhonemizer'
+    elif language == 'english':
+        phonemizer = 'DiffSingerEnglishPhonemizer'
+    elif language == 'japanese':
+        phonemizer = 'DiffSingerJapanesePhonemizer'
     else:
         phonemizer = 'DiffSingerBasePhonemizer'
 
     if not (os.path.exists(lyrics_path) and os.path.exists(chords_path)):
         return jsonify({"error": "Required files not found"}), 400
 
+    import os
+    import subprocess
+    from flask import jsonify
+
     try:
         print("The selected singer file is", voice_value)
         print("The selected singer name is", voice_label)
         print("The selected phonemizer is", phonemizer)
+
+        # 定义 start.py 的路径（相对于 ROC_FOLDER）
+        script_path = os.path.join(ROC_FOLDER, "start.py")
+
+        # 检查 start.py 是否存在
+        if not os.path.isfile(script_path):
+            error_msg = (
+                f"Error: '{script_path}' does not exist.\n"
+                f"Current working directory: {os.getcwd()}\n"
+                f"Target directory ({ROC_FOLDER}) contents: {os.listdir(ROC_FOLDER)}\n"
+                f"Expected script: start.py"
+            )
+            print(error_msg)
+            raise FileNotFoundError(f"'start.py' not found in {ROC_FOLDER}")
+
+        # 如果文件存在，打印确认信息
+        print(f"Found 'start.py' at: {os.path.abspath(script_path)}")
+
         # 将 voice 和 phonemizer 作为命令行参数传递给 start.py
-        cmd = ["python", "start.py", "--voice", voice_value, "--singerName", voice_label, "--phonemizer", phonemizer]
+        cmd = [
+            "python",
+            "start.py",
+            "--voice", voice_value,
+            "--singerName", voice_label,
+            "--phonemizer", phonemizer
+        ]
+
+        # 使用 subprocess.Popen 执行命令，保持原有的 cwd=ROC_FOLDER
         subprocess.Popen(cmd, cwd=ROC_FOLDER)
-        print("Start.py started with voice:", voice, "singerName", voice_label, "and phonemizer:", phonemizer)
+        print("Start.py started with voice:", voice_value, "singerName", voice_label, "and phonemizer:", phonemizer)
+
         return jsonify({"message": "Melody generation started"}), 200
+
+    except FileNotFoundError as e:
+        print(f"File error: {e}")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        print(f"An error occurred: {e}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -62,7 +62,7 @@ const MusicGenerator: React.FC = () => {
 
   const voices = {
     english: [
-      { value: 'yousaV1.5.zip', label: 'yousa' },
+      { value: 'Aikie_ML_v101.zip', label: 'Aikie' },
       { value: 'Liliko_v1.0.0_DiffSinger_OpenUtau.zip', label: 'Liliko' }
     ],
     mandarin: [
@@ -71,12 +71,13 @@ const MusicGenerator: React.FC = () => {
       { value: 'Aikie_ML_v101.zip', label: 'Aikie' }
     ],
     cantonese: [
-      { value: 'ChingChongHoi_OpenBeta.zip', label: 'Cong' },
-      { value: 'Ria-v0.4-lynxnet.zip', label: 'Ria' }
+      { value: 'Ria-v0.4-lynxnet.zip', label: 'Ria' },
+      { value: 'ChingChongHoi_OpenBeta.zip', label: 'Cong' }
+
     ],
     japanese: [
-      { value: 'default1', label: 'default1' },
-      { value: 'default2', label: 'default1' }
+      { value: 'Aikie_ML_v101.zip', label: 'Aikie' },
+      { value: 'Liliko_v1.0.0_DiffSinger_OpenUtau.zip', label: 'Liliko' }
     ]
   };
 
@@ -215,6 +216,7 @@ const MusicGenerator: React.FC = () => {
   // Update the useEffect for handling audio element changes
   useEffect(() => {
     if (audioRef.current && audioUrl) {
+      console.log("Loading audio from:", audioUrl);
       audioRef.current.load();
 
       // Check if we should auto-play
@@ -479,8 +481,8 @@ const MusicGenerator: React.FC = () => {
             <div className="bg-gray-800 p-4 rounded-lg">
               <h2 className="text-xl font-bold mb-4">Choose Voice</h2>
               {voices[selectedLanguage]?.map((voice, index) => {
-                const iconPath = `file_path/${selectedLanguage}Icon${index + 1}.png`;
-                const audioPath = `file_path/${selectedLanguage}Voice${index + 1}.mp3`;
+                const iconPath = `singerImg/${selectedLanguage}Icon${index + 1}.png`;
+                const audioPath = `sampleVoice/${selectedLanguage}Voice${index + 1}.wav`;
                 const isSelected = selectedVoice?.value === voice.value;
                 return (
                   <button
